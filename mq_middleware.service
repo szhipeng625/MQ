@@ -1,0 +1,16 @@
+[Unit]
+Description=OJ Middleware HTTP Gateway (C++)
+After=network.target
+
+[Service]
+Type=simple
+User=admin
+WorkingDirectory=/home/admin/.openclaw/workspace/mq_middleware
+ExecStart=/home/admin/.openclaw/workspace/mq_middleware/build/middleware /home/admin/.openclaw/workspace/mq_middleware/config.json
+Restart=always
+RestartSec=3
+StandardOutput=append:/var/log/mq_middleware.log
+StandardError=append:/var/log/mq_middleware.log
+
+[Install]
+WantedBy=multi-user.target

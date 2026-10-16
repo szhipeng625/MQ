@@ -1,0 +1,21 @@
+{
+  "http_port": 8899,
+  "use_https": true,
+  "cert_path": "server.crt",
+  "key_path": "server.key",
+  "mysql": {
+    "host": "43.157.39.171",
+    "port": 3306,
+    "user": "oj_user",
+    "pass": "12345678",
+    "db": "oj"
+  },
+  "lsm": {
+    "host": "43.157.39.171",
+    "port": 6380
+  },
+  "rate_limit": {
+    "max": 60,
+    "window": 60
+  }
+}
