@@ -6,7 +6,16 @@ on:
     paths:
       - "cloud_judge/**"
       - ".github/workflows/cloud-judge.yml"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "cloud_judge/**"
+      - ".github/workflows/cloud-judge.yml"
   workflow_dispatch: {}
+
+concurrency:
+  group: cloud-judge-integration
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
