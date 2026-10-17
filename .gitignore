@@ -2,3 +2,4 @@ build/
 *.key
 *.crt
 Dockerfile
+!cloud_judge/Dockerfile
