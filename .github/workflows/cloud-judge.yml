@@ -27,14 +27,16 @@ jobs:
 
       - name: Start RabbitMQ for integration test
         run: |
-          RQ_UID=$(docker run --rm --entrypoint getent rabbitmq:4.3-management-alpine passwd rabbitmq | cut -d: -f3)
-          RQ_GID=$(docker run --rm --entrypoint getent rabbitmq:4.3-management-alpine passwd rabbitmq | cut -d: -f4)
-          docker run -d --name rabbitmq-cj-test --network host --userns=host --tmpfs /var/lib/rabbitmq:rw,uid=$RQ_UID,gid=$RQ_GID,mode=700 rabbitmq:4.3-management-alpine
-          for i in $(seq 1 45); do
-            docker exec rabbitmq-cj-test rabbitmqctl await_startup 2>/dev/null && break
+          docker run -d --name rabbitmq-cj-test --network host --userns=host --tmpfs /var/lib/rabbitmq:rw,mode=1777 rabbitmq:4.3-management-alpine
+          for i in $(seq 1 30); do
+            if ss -tln | grep -q ':5672'; then echo "rabbitmq ready after $((i*2))s"; break; fi
             sleep 2
           done
-          echo "rabbitmq ready"
+          if ! ss -tln | grep -q ':5672'; then
+            echo 'ERROR: rabbitmq failed to listen on 5672' >&2
+            docker logs rabbitmq-cj-test 2>&1 | tail -20
+            exit 1
+          fi
 
       - name: Run cloud_judge container
         run: |
