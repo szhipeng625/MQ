@@ -53,6 +53,49 @@ jobs:
             exit 1
           fi
 
+      - name: Start MySQL and import schema
+        run: |
+          docker run -d --name mysql-cj-test --network host --userns=host -e MYSQL_ROOT_PASSWORD=rootpw -e MYSQL_DATABASE=oj -e MYSQL_USER=oj_user -e MYSQL_PASSWORD=mwtest123 mysql:8.0 --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+          for i in $(seq 1 40); do
+            if docker exec mysql-cj-test mysqladmin ping -uroot -prootpw >/dev/null 2>&1; then echo "mysql ready after $((i*3))s"; break; fi
+            sleep 3
+          done
+          if ! ss -tln | grep -q ':3306'; then
+            echo 'ERROR: mysql failed to listen on 3306' >&2
+            docker logs mysql-cj-test 2>&1 | tail -20
+            exit 1
+          fi
+          docker exec -i mysql-cj-test mysql -uoj_user -pmwtest123 oj < "$GITHUB_WORKSPACE/cloud_judge/tests/oj_schema.sql"
+          echo 'schema imported'
+
+      - name: Build and start middleware
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src" -w /src ubuntu:24.04 bash -c '
+            set -e
+            apt-get update -qq
+            apt-get install -y -qq --no-install-recommends cmake make g++ libssl-dev libmysqlclient-dev libasan8 zstd libzstd-dev >/dev/null 2>&1
+            cmake -B /tmp/b -DCMAKE_BUILD_TYPE=Release -DJSON_INCLUDE=/src/include -DHTTPLIB_INCLUDE=/src/include >/dev/null 2>&1
+            cmake --build /tmp/b --target middleware -j$(nproc) >/dev/null 2>&1
+            test -x /tmp/b/middleware
+            echo "middleware built: $(stat -c%s /tmp/b/middleware) bytes"
+          '
+          printf '%s\n' '{' '  "http_port": 18899,' '  "use_https": false,' '  "mysql": {"host":"127.0.0.1","port":3306,"user":"oj_user","pass":"mwtest123","db":"oj"},' '  "lsm": {"host":"127.0.0.1","port":6380},' '  "rate_limit": {"max":60,"window":60}' '}' > /tmp/mw-ci-config.json
+          docker run -d --name mw-ci-test --network host --userns=host -v "$GITHUB_WORKSPACE:/src" -v /tmp/mw-ci-config.json:/run-config/config.json -w /src ubuntu:24.04 bash -c '
+            set -e
+            apt-get update -qq
+            apt-get install -y -qq --no-install-recommends libssl3 libmysqlclient21 libasan8 zstd libzstd1 ca-certificates curl procps >/dev/null 2>&1
+            cmake -B /tmp/b -DCMAKE_BUILD_TYPE=Release -DJSON_INCLUDE=/src/include -DHTTPLIB_INCLUDE=/src/include >/dev/null 2>&1
+            cmake --build /tmp/b --target middleware -j$(nproc) >/dev/null 2>&1
+            /tmp/b/middleware /run-config/config.json
+          '
+          sleep 15
+          docker logs mw-ci-test 2>&1 | tail -20
+          if ! ss -tln | grep -q ':18899'; then
+            echo 'ERROR: middleware failed to listen on 18899' >&2
+            exit 1
+          fi
+          echo 'middleware listening on 18899'
+
       - name: Run cloud_judge container
         run: |
           docker run -d --name cj-test --network host --userns=host --privileged -e MQ_HOST=127.0.0.1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
