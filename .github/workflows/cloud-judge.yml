@@ -1,0 +1,59 @@
+name: Cloud Judge Build and Integration Test
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "cloud_judge/**"
+      - ".github/workflows/cloud-judge.yml"
+  workflow_dispatch: {}
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/mq-cloud-judge
+
+jobs:
+  build-and-test:
+    runs-on: [self-hosted, linux, x64]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build cloud_judge image
+        run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test ./cloud_judge
+
+      - name: Start RabbitMQ for integration test
+        run: |
+          docker run -d --name rabbitmq-cj-test --network host --userns=host rabbitmq:4.3-management-alpine
+          for i in $(seq 1 45); do
+            docker exec rabbitmq-cj-test rabbitmqctl await_startup 2>/dev/null && break
+            sleep 2
+          done
+          echo "rabbitmq ready"
+
+      - name: Run cloud_judge container
+        run: |
+          docker run -d --name cj-test --network host --userns=host --privileged -e MQ_HOST=127.0.0.1 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test
+          sleep 10
+          docker logs cj-test 2>&1 | tail -15
+
+      - name: Run integration test
+        run: docker run --rm --network host -v $GITHUB_WORKSPACE/cloud_judge/tests:/tests python:3.11-slim sh -c "pip install pika -q && python3 /tests/integration_test.py 127.0.0.1"
+
+      - name: Login to GHCR and push image
+        if: success() && github.event_name != "pull_request"
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker logs cj-test 2>&1 | tail -30 || true
+          docker rm -f cj-test rabbitmq-cj-test 2>/dev/null || true
