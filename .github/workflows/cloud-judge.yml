@@ -27,7 +27,9 @@ jobs:
 
       - name: Start RabbitMQ for integration test
         run: |
-          docker run -d --name rabbitmq-cj-test --network host --userns=host rabbitmq:4.3-management-alpine
+          RQ_UID=$(docker run --rm --entrypoint getent rabbitmq:4.3-management-alpine passwd rabbitmq | cut -d: -f3)
+          RQ_GID=$(docker run --rm --entrypoint getent rabbitmq:4.3-management-alpine passwd rabbitmq | cut -d: -f4)
+          docker run -d --name rabbitmq-cj-test --network host --userns=host --tmpfs /var/lib/rabbitmq:rw,uid=$RQ_UID,gid=$RQ_GID,mode=700 rabbitmq:4.3-management-alpine
           for i in $(seq 1 45); do
             docker exec rabbitmq-cj-test rabbitmqctl await_startup 2>/dev/null && break
             sleep 2
