@@ -25,6 +25,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Build middleware (C++ compile check)
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE:/src" -w /src ubuntu:24.04 bash -c '
+            set -e
+            apt-get update -qq
+            apt-get install -y -qq --no-install-recommends cmake make g++ libssl-dev libmysqlclient-dev libasan8 zstd libzstd-dev
+            cmake -B /tmp/b -DCMAKE_BUILD_TYPE=Release -DJSON_INCLUDE=/src/include -DHTTPLIB_INCLUDE=/src/include
+            cmake --build /tmp/b --target middleware -j$(nproc)
+            test -x /tmp/b/middleware
+            echo "middleware built: $(stat -c%s /tmp/b/middleware) bytes"
+          '
+
       - name: Build cloud_judge image
         run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test ./cloud_judge
 
