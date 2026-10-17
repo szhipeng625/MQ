@@ -43,7 +43,7 @@ jobs:
           docker logs cj-test 2>&1 | tail -15
 
       - name: Run integration test
-        run: docker run --rm --network host -v $GITHUB_WORKSPACE/cloud_judge/tests:/tests python:3.11-slim sh -c "pip install pika -q && python3 /tests/integration_test.py 127.0.0.1"
+        run: docker run --rm --network host -e MQ_HOST=127.0.0.1 -v "$GITHUB_WORKSPACE/cloud_judge/tests:/tests:ro" ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test python3 /tests/integration_test.py 127.0.0.1
 
       - name: Login to GHCR and push image
         if: success() && github.event_name != 'pull_request'
