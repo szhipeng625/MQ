@@ -1,16 +1,10 @@
-name: Cloud Judge Build and Integration Test
+name: MQ Project Build and Integration Test
 
 on:
   push:
     branches: [main, master]
-    paths:
-      - "cloud_judge/**"
-      - ".github/workflows/cloud-judge.yml"
   pull_request:
     branches: [main, master]
-    paths:
-      - "cloud_judge/**"
-      - ".github/workflows/cloud-judge.yml"
   workflow_dispatch: {}
 
 concurrency:
