@@ -44,7 +44,7 @@ jobs:
         run: docker run --rm --network host -v $GITHUB_WORKSPACE/cloud_judge/tests:/tests python:3.11-slim sh -c "pip install pika -q && python3 /tests/integration_test.py 127.0.0.1"
 
       - name: Login to GHCR and push image
-        if: success() && github.event_name != "pull_request"
+        if: success() && github.event_name != 'pull_request'
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
           docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:test ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
